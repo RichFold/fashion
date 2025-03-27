@@ -3,68 +3,67 @@ import numpy as np
 import plotly.express as px
 import streamlit as st
 
-# Set Streamlit title and description
+# Title and description
 st.title("Fashion Trend Quadrant Explorer")
 st.markdown("""
 Explore keyword performance based on **Year-over-Year (YoY)** and **Three-Month** search trends.  
-Use the slider to filter based on average monthly search volume.
+Use the slider to filter by average monthly search volume.
 """)
 
-# Load data from your public Google Drive CSV
+# Load cleaned fashion trend data from Google Drive or local test
 csv_url = "https://drive.google.com/uc?export=download&id=1fsa-86gDxqG9WKHDmYVOo4ESlyXgkn9o"
 df = pd.read_csv(csv_url)
 
-# Rename and clean columns
-rename_mapping = {
-    "Keyword": "Keyword",
-    "YoY change": "YoY Change",
-    "Three month change": "Three Month Change",
-    "Avg. monthly searches": "Avg. Monthly Searches"
-}
-df.rename(columns=rename_mapping, inplace=True)
+# Clean and convert values
+def clean_percent(col):
+    return pd.to_numeric(
+        col.replace("∞", np.nan).str.replace('%', ''), 
+        errors='coerce'
+    )
 
-# Convert values to numeric and clean
-df["YoY Change"] = pd.to_numeric(df["YoY Change"].replace("∞", np.nan), errors='coerce')
-df["Three Month Change"] = pd.to_numeric(df["Three Month Change"].replace("∞", np.nan), errors='coerce')
-df["Avg. Monthly Searches"] = pd.to_numeric(df["Avg. Monthly Searches"], errors='coerce')
+df["YoY change"] = clean_percent(df["YoY change"])
+df["Three month change"] = clean_percent(df["Three month change"])
+df["Avg. monthly searches"] = pd.to_numeric(df["Avg. monthly searches"], errors='coerce')
 df = df.dropna()
 
-# Add quadrant category
-def classify_quadrant(row):
-    if row["YoY Change"] > 0 and row["Three Month Change"] > 0:
+# Classify quadrant trend
+def classify(row):
+    x = row["YoY change"]
+    y = row["Three month change"]
+    if x > 0 and y > 0:
         return "Winners 💚"
-    elif row["YoY Change"] < 0 and row["Three Month Change"] < 0:
+    elif x < 0 and y < 0:
         return "Fading 🔻"
-    elif row["YoY Change"] < 0 and row["Three Month Change"] > 0:
+    elif x < 0 and y > 0:
         return "Seasonal Spikes 🔵"
     else:
         return "Long-term Growth 🟠"
 
-df["Trend Type"] = df.apply(classify_quadrant, axis=1)
+df["Trend Type"] = df.apply(classify, axis=1)
 
-# Volume slider
-min_vol = int(df["Avg. Monthly Searches"].min())
-max_vol = int(df["Avg. Monthly Searches"].max())
-volume_range = st.slider("Filter by Avg. Monthly Searches", min_vol, max_vol, (min_vol, max_vol), step=100)
+# Add slider for filtering by search volume
+min_vol = int(df["Avg. monthly searches"].min())
+max_vol = int(df["Avg. monthly searches"].max())
+vol_range = st.slider("Filter by Avg. Monthly Searches", min_vol, max_vol, (min_vol, max_vol), step=10)
 
 # Filter data
 filtered = df[
-    (df["Avg. Monthly Searches"] >= volume_range[0]) &
-    (df["Avg. Monthly Searches"] <= volume_range[1])
+    (df["Avg. monthly searches"] >= vol_range[0]) & 
+    (df["Avg. monthly searches"] <= vol_range[1])
 ]
 
-# Plot interactive bubble chart
+# Plot quadrant chart
 fig = px.scatter(
     filtered,
-    x="YoY Change",
-    y="Three Month Change",
-    size="Avg. Monthly Searches",
+    x="YoY change",
+    y="Three month change",
+    size="Avg. monthly searches",
     color="Trend Type",
     text="Keyword",
-    title="Fashion Trend Quadrant Chart",
+    title="Search Volume Quadrant Chart",
     labels={
-        "YoY Change": "Year-over-Year Change (%)",
-        "Three Month Change": "3-Month Change (%)"
+        "YoY change": "YoY % Change",
+        "Three month change": "3-Month % Change"
     },
     height=600
 )
